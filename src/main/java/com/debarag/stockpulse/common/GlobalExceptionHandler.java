@@ -6,7 +6,7 @@ import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import com.debarag.stockpulse.stock.StockNotFoundException;
-
+import com.debarag.stockpulse.user.DuplicateWatchlistException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import java.util.stream.Collectors;
 
@@ -72,6 +72,19 @@ public class GlobalExceptionHandler {
         );
 
         problem.setTitle("Invalid request parameter");
+        return problem;
+    }
+
+    @ExceptionHandler(DuplicateWatchlistException.class)
+    public ProblemDetail handleDuplicateWatchlist(
+            DuplicateWatchlistException exception) {
+
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.CONFLICT,
+                exception.getMessage()
+        );
+
+        problem.setTitle("Duplicate watchlist entry");
         return problem;
     }
 

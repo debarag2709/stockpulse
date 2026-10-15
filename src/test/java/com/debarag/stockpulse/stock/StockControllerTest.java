@@ -1,25 +1,32 @@
-
 package com.debarag.stockpulse.stock;
 
 import com.debarag.stockpulse.common.GlobalExceptionHandler;
+import com.debarag.stockpulse.config.JwtService;
+import com.debarag.stockpulse.user.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.List;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(StockController.class)
-@Import(GlobalExceptionHandler.class)
+@Import({
+        GlobalExceptionHandler.class,
+        com.debarag.stockpulse.config.SecurityConfig.class
+})
 class StockControllerTest {
 
     @Autowired
@@ -28,7 +35,14 @@ class StockControllerTest {
     @MockitoBean
     private StockService stockService;
 
+    @MockitoBean
+    private JwtService jwtService;
+
+    @MockitoBean
+    private UserRepository userRepository;
+
     @Test
+    @WithMockUser(username = "test@example.com")
     void createStock_shouldReturn201_whenRequestIsValid() throws Exception {
         Stock stock = new Stock("INFY", "Infosys", "NSE");
 
@@ -51,6 +65,7 @@ class StockControllerTest {
     }
 
     @Test
+    @WithMockUser(username = "test@example.com")
     void createStock_shouldReturn400_whenSymbolIsBlank() throws Exception {
         mockMvc.perform(post("/api/stocks")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -65,8 +80,8 @@ class StockControllerTest {
                 .andExpect(jsonPath("$.title").value("Validation failed"));
     }
 
-
     @Test
+    @WithMockUser(username = "test@example.com")
     void getAllStocks_shouldReturn200() throws Exception {
         Stock stock = new Stock("INFY", "Infosys", "NSE");
 
@@ -75,11 +90,9 @@ class StockControllerTest {
                         List.of(stock)
                 );
 
-        when(stockService.getAllStocks(
-                org.mockito.ArgumentMatchers.any(
-                        org.springframework.data.domain.Pageable.class
-                )
-        )).thenReturn(stockPage);
+        when(stockService.getAllStocks(any(
+                org.springframework.data.domain.Pageable.class
+        ))).thenReturn(stockPage);
 
         mockMvc.perform(get("/api/stocks"))
                 .andExpect(status().isOk())
@@ -88,9 +101,8 @@ class StockControllerTest {
                 .andExpect(jsonPath("$.totalPages").value(1));
     }
 
-
-
     @Test
+    @WithMockUser(username = "test@example.com")
     void getStockById_shouldReturn200_whenStockExists() throws Exception {
         Stock stock = new Stock("RELIANCE", "Reliance Industries", "NSE");
 
@@ -103,6 +115,7 @@ class StockControllerTest {
     }
 
     @Test
+    @WithMockUser(username = "test@example.com")
     void getStockById_shouldReturn404_whenStockDoesNotExist() throws Exception {
         when(stockService.getStockById(999999L))
                 .thenThrow(new StockNotFoundException(999999L));
@@ -112,8 +125,8 @@ class StockControllerTest {
                 .andExpect(jsonPath("$.title").value("Stock not found"));
     }
 
-
     @Test
+    @WithMockUser(username = "test@example.com")
     void updateStock_shouldReturn200_whenRequestIsValid() throws Exception {
         Stock stock = new Stock(
                 "RELIANCE",
@@ -128,18 +141,15 @@ class StockControllerTest {
                 true
         )).thenReturn(stock);
 
-        mockMvc.perform(
-                        org.springframework.test.web.servlet.request.MockMvcRequestBuilders
-                                .put("/api/stocks/1")
-                                .contentType(MediaType.APPLICATION_JSON)
-                                .content("""
-                                    {
-                                      "companyName": "Reliance Industries Limited",
-                                      "exchange": "NSE",
-                                      "active": true
-                                    }
-                                    """)
-                )
+        mockMvc.perform(put("/api/stocks/1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "companyName": "Reliance Industries Limited",
+                                  "exchange": "NSE",
+                                  "active": true
+                                }
+                                """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.symbol").value("RELIANCE"))
                 .andExpect(jsonPath("$.companyName")
@@ -147,21 +157,18 @@ class StockControllerTest {
                 .andExpect(jsonPath("$.active").value(true));
     }
 
-
     @Test
+    @WithMockUser(username = "test@example.com")
     void updateStock_shouldReturn400_whenCompanyNameIsBlank() throws Exception {
-        mockMvc.perform(
-                        org.springframework.test.web.servlet.request.MockMvcRequestBuilders
-                                .put("/api/stocks/1")
-                                .contentType(MediaType.APPLICATION_JSON)
-                                .content("""
-                                    {
-                                      "companyName": "",
-                                      "exchange": "NSE",
-                                      "active": true
-                                    }
-                                    """)
-                )
+        mockMvc.perform(put("/api/stocks/1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "companyName": "",
+                                  "exchange": "NSE",
+                                  "active": true
+                                }
+                                """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.title").value("Validation failed"))
                 .andExpect(jsonPath("$.detail")
@@ -170,8 +177,8 @@ class StockControllerTest {
                         )));
     }
 
-
     @Test
+    @WithMockUser(username = "test@example.com")
     void updateStock_shouldReturn404_whenStockDoesNotExist() throws Exception {
         when(stockService.updateStock(
                 999999L,
@@ -180,24 +187,21 @@ class StockControllerTest {
                 true
         )).thenThrow(new StockNotFoundException(999999L));
 
-        mockMvc.perform(
-                        org.springframework.test.web.servlet.request.MockMvcRequestBuilders
-                                .put("/api/stocks/999999")
-                                .contentType(MediaType.APPLICATION_JSON)
-                                .content("""
-                                    {
-                                      "companyName": "Unknown Company",
-                                      "exchange": "NSE",
-                                      "active": true
-                                    }
-                                    """)
-                )
+        mockMvc.perform(put("/api/stocks/999999")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "companyName": "Unknown Company",
+                                  "exchange": "NSE",
+                                  "active": true
+                                }
+                                """))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.title").value("Stock not found"));
     }
 
-
     @Test
+    @WithMockUser(username = "test@example.com")
     void getAllStocks_shouldReturn400_whenPageIsNegative() throws Exception {
         mockMvc.perform(get("/api/stocks?page=-1"))
                 .andExpect(status().isBadRequest())
@@ -208,6 +212,7 @@ class StockControllerTest {
     }
 
     @Test
+    @WithMockUser(username = "test@example.com")
     void getAllStocks_shouldReturn400_whenSortFieldIsInvalid() throws Exception {
         mockMvc.perform(get("/api/stocks?sortBy=unknownField"))
                 .andExpect(status().isBadRequest())
@@ -218,6 +223,7 @@ class StockControllerTest {
     }
 
     @Test
+    @WithMockUser(username = "test@example.com")
     void getAllStocks_shouldReturn400_whenSortDirectionIsInvalid() throws Exception {
         mockMvc.perform(get("/api/stocks?direction=sideways"))
                 .andExpect(status().isBadRequest())
@@ -226,5 +232,4 @@ class StockControllerTest {
                 .andExpect(jsonPath("$.detail")
                         .value("direction must be either 'asc' or 'desc'"));
     }
-
 }
