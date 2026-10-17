@@ -3,6 +3,7 @@ package com.debarag.stockpulse.user;
 
 import com.debarag.stockpulse.stock.Stock;
 import com.debarag.stockpulse.stock.StockRepository;
+import jakarta.persistence.EntityManager;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -14,15 +15,18 @@ public class WatchlistService {
     private final WatchlistRepository watchlistRepository;
     private final UserRepository userRepository;
     private final StockRepository stockRepository;
+    private final EntityManager entityManager;
 
     public WatchlistService(
             WatchlistRepository watchlistRepository,
             UserRepository userRepository,
-            StockRepository stockRepository
+            StockRepository stockRepository,
+            EntityManager entityManager
     ) {
         this.watchlistRepository = watchlistRepository;
         this.userRepository = userRepository;
         this.stockRepository = stockRepository;
+        this.entityManager = entityManager;
     }
 
     @Transactional
@@ -40,7 +44,13 @@ public class WatchlistService {
                     "Stock is already in the watchlist");
         }
 
-        return watchlistRepository.save(new Watchlist(user, stock));
+        Watchlist watchlist =
+                watchlistRepository.save(new Watchlist(user, stock));
+
+        entityManager.flush();
+        entityManager.refresh(watchlist);
+
+        return watchlist;
     }
 
     @Transactional(readOnly = true)

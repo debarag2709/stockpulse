@@ -3,6 +3,7 @@ package com.debarag.stockpulse.user;
 
 import com.debarag.stockpulse.stock.Stock;
 import com.debarag.stockpulse.stock.StockRepository;
+import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -26,6 +27,9 @@ class WatchlistServiceTest {
 
     @Mock
     private StockRepository stockRepository;
+
+    @Mock
+    private EntityManager entityManager;
 
     @InjectMocks
     private WatchlistService watchlistService;
@@ -63,16 +67,16 @@ class WatchlistServiceTest {
         assertEquals("RELIANCE", result.getStock().getSymbol());
 
         verify(watchlistRepository).save(any(Watchlist.class));
+        verify(entityManager).flush();
+        verify(entityManager).refresh(savedEntry);
     }
 
     @Test
     void addStock_shouldThrowException_whenStockAlreadyInWatchlist() {
         when(userRepository.findById(1L))
                 .thenReturn(Optional.of(user));
-
         when(stockRepository.findById(1L))
                 .thenReturn(Optional.of(stock));
-
         when(watchlistRepository.existsByUserIdAndStockId(1L, 1L))
                 .thenReturn(true);
 
@@ -87,25 +91,24 @@ class WatchlistServiceTest {
         );
 
         verify(watchlistRepository, never()).save(any(Watchlist.class));
+        verify(entityManager, never()).flush();
+        verify(entityManager, never()).refresh(any(Watchlist.class));
     }
 
     @Test
     void removeStock_shouldDeleteEntry_whenStockIsInWatchlist() {
         when(userRepository.existsById(1L)).thenReturn(true);
-
         when(watchlistRepository.existsByUserIdAndStockId(1L, 1L))
                 .thenReturn(true);
 
         watchlistService.removeStock(1L, 1L);
 
-        verify(watchlistRepository)
-                .deleteByUserIdAndStockId(1L, 1L);
+        verify(watchlistRepository).deleteByUserIdAndStockId(1L, 1L);
     }
 
     @Test
     void removeStock_shouldThrowException_whenStockIsNotInWatchlist() {
         when(userRepository.existsById(1L)).thenReturn(true);
-
         when(watchlistRepository.existsByUserIdAndStockId(1L, 1L))
                 .thenReturn(false);
 
