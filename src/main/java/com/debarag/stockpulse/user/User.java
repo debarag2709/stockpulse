@@ -24,6 +24,12 @@ public class User {
     @Column(name = "password_hash", nullable = false, length = 100)
     private String passwordHash;
 
+    @Column(name = "whatsapp_phone", length = 20)
+    private String whatsappPhone;
+
+    @Column(name = "whatsapp_enabled", nullable = false)
+    private boolean whatsappEnabled = false;
+
     @Column(
             name = "created_at",
             nullable = false,
@@ -53,7 +59,23 @@ public class User {
         return passwordHash;
     }
 
+    public String getWhatsappPhone() {
+        return whatsappPhone;
+    }
+
+    public boolean isWhatsappEnabled() {
+        return whatsappEnabled;
+    }
+
     public OffsetDateTime getCreatedAt() {
         return createdAt;
+    }
+
+    public void setWhatsappPhone(String whatsappPhone) {
+        this.whatsappPhone = whatsappPhone;
+    }
+
+    public void setWhatsappEnabled(boolean whatsappEnabled) {
+        this.whatsappEnabled = whatsappEnabled;
     }
 }
