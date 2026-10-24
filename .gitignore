@@ -39,3 +39,7 @@ build/
 
 # Local application configuration overrides
 application-local.properties
+
+# Local runtime logs
+startup.log
+startup-email.log
