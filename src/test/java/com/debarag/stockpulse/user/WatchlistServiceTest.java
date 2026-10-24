@@ -140,4 +140,27 @@ class WatchlistServiceTest {
         verify(watchlistRepository, never())
                 .deleteByUserIdAndStockId(1L, 1L);
     }
+
+    @Test
+    void removeStock_shouldNotDeleteAnotherUsersEntry() {
+        Long userAId = 1L;
+        Long userBId = 2L;
+        Long stockId = 10L;
+
+        when(userRepository.existsById(userAId)).thenReturn(true);
+        when(watchlistRepository.existsByUserIdAndStockId(userAId, stockId))
+                .thenReturn(false);
+
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> watchlistService.removeStock(userAId, stockId)
+        );
+
+        verify(watchlistRepository)
+                .existsByUserIdAndStockId(userAId, stockId);
+
+        verify(watchlistRepository, never())
+                .deleteByUserIdAndStockId(anyLong(), anyLong());
+    }
+
 }
