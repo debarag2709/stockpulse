@@ -1,9 +1,15 @@
-
 package com.debarag.stockpulse.stock;
 
-import jakarta.persistence.*;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
+
 import java.time.OffsetDateTime;
 
 @Entity
@@ -48,8 +54,8 @@ public class Stock {
     )
     private OffsetDateTime createdAt;
 
+    // Required by JPA
     protected Stock() {
-        // Required by JPA
     }
 
     public Stock(String symbol, String companyName, String exchange) {
@@ -78,6 +84,10 @@ public class Stock {
         return active;
     }
 
+    public OffsetDateTime getCreatedAt() {
+        return createdAt;
+    }
+
     public void setSymbol(String symbol) {
         this.symbol = symbol;
     }
@@ -92,9 +102,5 @@ public class Stock {
 
     public void setActive(boolean active) {
         this.active = active;
-    }
-
-    public OffsetDateTime getCreatedAt() {
-        return createdAt;
     }
 }

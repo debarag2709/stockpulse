@@ -11,6 +11,9 @@ import org.springframework.data.domain.Pageable;
 import java.util.List;
 import java.util.Locale;
 
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+
 @Service
 public class StockService {
 
@@ -49,12 +52,14 @@ public class StockService {
 
 
 
+    @Cacheable(value = "stocks", key = "#id")
     public Stock getStockById(Long id) {
         return stockRepository.findById(id)
                 .orElseThrow(() -> new StockNotFoundException(id));
     }
 
 
+    @CacheEvict(value = "stocks", key = "#id")
     @Transactional
     public Stock updateStock(
             Long id,
