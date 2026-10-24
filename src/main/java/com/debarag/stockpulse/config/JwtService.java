@@ -48,7 +48,7 @@ public class JwtService {
     public boolean isTokenValid(String token, String expectedEmail) {
         try {
             String email = extractEmail(token);
-            return email.equals(expectedEmail);
+            return expectedEmail != null && expectedEmail.equals(email);
         } catch (io.jsonwebtoken.JwtException
                  | IllegalArgumentException ex) {
             return false;

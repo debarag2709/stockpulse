@@ -61,11 +61,25 @@ class JwtServiceTest {
         assertFalse(jwtService.isTokenValid(expiredToken, "test@example.com"));
     }
 
+
     @Test
     void shouldRejectTamperedToken() {
         String token = jwtService.generateToken(1L, "test@example.com");
-        String tamperedToken = token.substring(0, token.length() - 2) + "xx";
 
-        assertFalse(jwtService.isTokenValid(tamperedToken, "test@example.com"));
+        String[] parts = token.split("\\.");
+        assertEquals(3, parts.length);
+
+        // Change the first character of the signature.
+        char first = parts[2].charAt(0);
+        char replacement = first == 'A' ? 'B' : 'A';
+        parts[2] = replacement + parts[2].substring(1);
+
+        String tamperedToken = String.join(".", parts);
+
+        assertFalse(jwtService.isTokenValid(
+                tamperedToken,
+                "test@example.com"
+        ));
     }
+
 }
