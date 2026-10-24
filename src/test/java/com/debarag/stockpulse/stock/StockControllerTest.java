@@ -232,4 +232,17 @@ class StockControllerTest {
                 .andExpect(jsonPath("$.detail")
                         .value("direction must be either 'asc' or 'desc'"));
     }
+
+    @Test
+    @WithMockUser(username = "test@example.com")
+    void getStockById_shouldReturn500_whenUnexpectedExceptionOccurs()
+            throws Exception {
+
+        when(stockService.getStockById(1L))
+                .thenThrow(new RuntimeException("internal database details"));
+
+        mockMvc.perform(get("/api/stocks/1"))
+                .andExpect(status().isInternalServerError());
+    }
+
 }

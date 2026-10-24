@@ -9,9 +9,16 @@ import com.debarag.stockpulse.stock.StockNotFoundException;
 import com.debarag.stockpulse.user.DuplicateWatchlistException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    private static final Logger logger =
+            LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+    // Your existing exception handler methods remain here
 
     @ExceptionHandler(DuplicateStockException.class)
     public ProblemDetail handleDuplicateStock(
@@ -85,6 +92,19 @@ public class GlobalExceptionHandler {
         );
 
         problem.setTitle("Duplicate watchlist entry");
+        return problem;
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ProblemDetail handleUnexpectedException(Exception exception) {
+        logger.error("Unexpected application error", exception);
+
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                "An unexpected error occurred"
+        );
+
+        problem.setTitle("Internal server error");
         return problem;
     }
 
