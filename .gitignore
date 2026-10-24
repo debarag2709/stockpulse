@@ -43,3 +43,16 @@ application-local.properties
 # Local runtime logs
 startup.log
 startup-email.log
+
+# Private keys and certificates
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+
+# Credential and secret files
+credentials/
+secrets/
+id_rsa
+id_rsa.*
