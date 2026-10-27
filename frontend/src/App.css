@@ -729,186 +729,109 @@ button:disabled {
 }
 
 
-/* Stock details page and historical price chart */
-.stock-detail-link {
-  display: inline-block;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: #dbe5ff;
-  font-size: 12px;
-  font-weight: 750;
-  text-align: left;
-  cursor: pointer;
-}
-
-.stock-detail-link:hover {
-  color: #91aaff;
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-
-.stock-details-section {
+/* Stock search controls */
+.stock-search {
   display: flex;
-  flex-direction: column;
-  gap: 22px;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
 }
 
-.stock-details-heading {
-  margin-bottom: 0;
+.stock-search .search-input {
+  width: 220px;
 }
 
-.back-button {
-  display: inline-flex;
-  margin-bottom: 14px;
-  padding: 7px 0;
-  border: 0;
-  background: transparent;
-  color: #91aaff;
+.search-button {
+  padding: 11px 16px;
+  border: 1px solid #345047;
+  border-radius: 9px;
+  background: #152d2b;
+  color: #9fe8d1;
   font-size: 12px;
   font-weight: 700;
+  white-space: nowrap;
+  transition: background 0.2s ease;
 }
 
-.back-button:hover {
-  color: #c1ceff;
-}
-
-.stock-detail-stats {
-  margin-top: 0;
-}
-
-.price-chart-card {
-  min-width: 0;
-  padding: 22px;
-}
-
-.chart-heading {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 18px;
-}
-
-.chart-heading h3,
-.latest-record-card h3 {
-  margin: 0 0 7px;
-  color: #eef3ff;
-  font-size: 16px;
-}
-
-.chart-heading p {
-  margin: 0;
-  color: #8d9ab4;
-  font-size: 12px;
-}
-
-.price-chart {
-  width: 100%;
-  height: 320px;
-  min-width: 0;
-}
-
-.chart-empty-state {
-  padding: 50px 12px;
-}
-
-.latest-record-card {
-  padding: 22px;
-}
-
-.latest-record-card .settings-row {
-  margin-top: 16px;
+.search-button:hover {
+  background: #1d403a;
 }
 
 @media (max-width: 600px) {
-  .price-chart-card,
-  .latest-record-card {
-    padding: 16px;
-  }
-
-  .price-chart {
-    height: 260px;
-  }
-
-  .chart-heading {
-    align-items: flex-start;
-  }
-}
-
-/* Mobile table and header refinements */
-@media (max-width: 600px) {
-  .brand {
-    padding: 0;
-    font-size: 20px;
-  }
-
-  .sidebar {
-    overflow: hidden;
-  }
-
-  .sidebar nav {
-    max-width: 100%;
-    scrollbar-width: thin;
-    scrollbar-color: #34415b transparent;
-  }
-
-  .sidebar nav .nav-item {
-    flex: 0 0 auto;
-    white-space: nowrap;
-  }
-
-  .main-content {
-    min-width: 0;
-    overflow-x: hidden;
-  }
-
-  .stocks-section {
-    min-width: 0;
-    padding: 16px;
-  }
-
-  .table-wrap {
-    max-width: 100%;
-    overflow-x: auto;
-    overscroll-behavior-x: contain;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  .table-wrap table {
-    min-width: 680px;
+  .stock-search {
     width: 100%;
   }
 
-  .table-wrap th,
-  .table-wrap td {
-    white-space: nowrap;
-  }
-
-  .table-wrap th:first-child,
-  .table-wrap td:first-child {
-    min-width: 180px;
-  }
-
-  .table-wrap td:first-child .stock-name {
-    min-width: 155px;
-  }
-
-  .table-wrap td:first-child .stock-name > div:last-child {
-    min-width: 0;
-  }
-
-  .table-wrap td:first-child .stock-name p {
-    white-space: normal;
-    overflow-wrap: anywhere;
-  }
-
-  .section-heading {
-    min-width: 0;
-  }
-
-  .section-heading > div {
-    min-width: 0;
+  .stock-search .search-input {
+    flex: 1;
+    width: 0;
   }
 }
 
+
+/* Add stock form */
+.stocks-heading-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.add-stock-toggle {
+  flex-shrink: 0;
+}
+
+.add-stock-form {
+  display: grid;
+  gap: 16px;
+  margin: 0 0 22px;
+}
+
+.add-stock-form h3 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.add-stock-form > .muted {
+  margin: -8px 0 0;
+  line-height: 1.6;
+}
+
+.add-stock-fields {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.add-stock-fields .search-input {
+  width: 100%;
+}
+
+.form-success {
+  margin: 0 0 18px;
+  color: #6ee7b7;
+  font-size: 13px;
+}
+
+@media (max-width: 900px) {
+  .stocks-heading-actions {
+    justify-content: flex-start;
+  }
+
+  .add-stock-fields {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  .stocks-heading-actions {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .stocks-heading-actions .stock-search {
+    width: 100%;
+  }
+}

@@ -4,7 +4,10 @@ package com.debarag.stockpulse.stock;
 import com.debarag.stockpulse.alert.PriceAlertService;
 import com.debarag.stockpulse.client.IndianApiClient;
 import com.debarag.stockpulse.client.IndianApiStockResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -13,6 +16,9 @@ import java.util.Map;
 
 @Service
 public class StockPriceSyncService {
+
+    private static final Logger log =
+            LoggerFactory.getLogger(StockPriceSyncService.class);
 
     private final StockRepository stockRepository;
     private final IndianApiClient indianApiClient;
@@ -30,6 +36,9 @@ public class StockPriceSyncService {
         this.priceAlertService = priceAlertService;
     }
 
+    /**
+     * Sync all active stocks. Used by the scheduler.
+     */
     public int syncActiveStocks() {
         List<Stock> stocks = stockRepository.findAll()
                 .stream()
@@ -39,81 +48,132 @@ public class StockPriceSyncService {
         int recordedCount = 0;
 
         for (Stock stock : stocks) {
-            try {
-                IndianApiStockResponse response =
-                        indianApiClient.getStockData(stock.getCompanyName());
-
-                if (response == null || response.currentPrice() == null) {
-                    System.out.println(
-                            "No price data returned for stock ID "
-                                    + stock.getId()
-                                    + ", symbol " + stock.getSymbol());
-                    continue;
-                }
-
-                String exchange = stock.getExchange()
-                        .trim()
-                        .toUpperCase(Locale.ROOT);
-
-                Map<String, String> prices = response.currentPrice();
-                String priceText = prices.get(exchange);
-
-                if (priceText == null || priceText.isBlank()) {
-                    System.out.println(
-                            "No " + exchange + " price returned for stock ID "
-                                    + stock.getId()
-                                    + ", symbol " + stock.getSymbol()
-                                    + ". Available exchanges: "
-                                    + prices.keySet());
-                    continue;
-                }
-
-                BigDecimal price = new BigDecimal(priceText.trim());
-
-                if (price.signum() < 0) {
-                    System.out.println(
-                            "Ignoring negative price for stock ID "
-                                    + stock.getId());
-                    continue;
-                }
-
-                // Persist the price first.
-                priceHistoryService.recordPrice(stock.getId(), price);
+            if (syncStock(stock)) {
                 recordedCount++;
-
-                System.out.println(
-                        "Recorded price for " + stock.getSymbol()
-                                + " (" + exchange + "): " + price);
-
-                // Evaluate alerts independently of price recording.
-                try {
-                    int triggeredCount =
-                            priceAlertService.evaluateAlerts(
-                                    stock.getId(), price);
-
-                    if (triggeredCount > 0) {
-                        System.out.println(
-                                "Triggered " + triggeredCount
-                                        + " price alert(s) for "
-                                        + stock.getSymbol());
-                    }
-                } catch (RuntimeException alertException) {
-                    System.err.println(
-                            "Failed to evaluate alerts for stock ID "
-                                    + stock.getId()
-                                    + ", symbol " + stock.getSymbol()
-                                    + ": " + alertException.getMessage());
-                }
-
-            } catch (RuntimeException exception) {
-                // One stock's sync failure should not stop other stocks.
-                System.err.println(
-                        "Failed to sync stock ID " + stock.getId()
-                                + ", symbol " + stock.getSymbol()
-                                + ": " + exception.getMessage());
             }
         }
 
         return recordedCount;
+    }
+
+    /**
+     * Sync one stock immediately after creation.
+     */
+
+    public boolean syncStockById(Long stockId) {
+        return stockRepository.findById(stockId)
+                .map(this::syncStock)
+                .orElseGet(() -> {
+                    log.warn(
+                            "Cannot sync price: stock ID {} not found",
+                            stockId
+                    );
+                    return false;
+                });
+    }
+
+    private boolean syncStock(Stock stock) {
+        try {
+            IndianApiStockResponse response =
+                    indianApiClient.getStockData(stock.getSymbol());
+
+            if (response == null || response.currentPrice() == null) {
+                log.warn(
+                        "No price data returned for stock {} ({}). Fetching raw response for diagnosis.",
+                        stock.getSymbol(),
+                        stock.getId()
+                );
+
+                try {
+                    String rawResponse =
+                            indianApiClient.getStockDataRaw(
+                                    stock.getCompanyName()
+                            );
+
+                    log.info(
+                            "Raw IndianAPI response for {}: {}",
+                            stock.getSymbol(),
+                            rawResponse
+                    );
+                } catch (RuntimeException rawException) {
+                    log.error(
+                            "Could not fetch raw API response for {}",
+                            stock.getSymbol(),
+                            rawException
+                    );
+                }
+
+                return false;
+            }
+
+            String exchange = stock.getExchange()
+                    .trim()
+                    .toUpperCase(Locale.ROOT);
+
+            Map<String, String> prices = response.currentPrice();
+            String priceText = prices.get(exchange);
+
+            if (priceText == null || priceText.isBlank()) {
+                log.warn(
+                        "No {} price returned for stock {}. Available exchanges: {}",
+                        exchange,
+                        stock.getSymbol(),
+                        prices.keySet()
+                );
+                return false;
+            }
+
+            BigDecimal price = new BigDecimal(priceText.trim());
+
+            if (price.signum() < 0) {
+                log.warn(
+                        "Ignoring negative price for stock {}",
+                        stock.getSymbol()
+                );
+                return false;
+            }
+
+            priceHistoryService.recordPrice(stock.getId(), price);
+
+            log.info(
+                    "Recorded price for {} ({}): {}",
+                    stock.getSymbol(),
+                    exchange,
+                    price
+            );
+
+            try {
+                int triggeredCount =
+                        priceAlertService.evaluateAlerts(
+                                stock.getId(),
+                                price
+                        );
+
+                if (triggeredCount > 0) {
+                    log.info(
+                            "Triggered {} price alert(s) for {}",
+                            triggeredCount,
+                            stock.getSymbol()
+                    );
+                }
+            } catch (RuntimeException alertException) {
+                log.error(
+                        "Price was saved, but alert evaluation failed for {}",
+                        stock.getSymbol(),
+                        alertException
+                );
+            }
+
+            return true;
+
+        } catch (RuntimeException exception) {
+            log.error(
+                    "Failed to sync stock {} ({})",
+                    stock.getSymbol(),
+                    stock.getId(),
+                    exception
+            );
+            return false;
+        }
     }
 }

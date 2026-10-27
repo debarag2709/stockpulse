@@ -22,6 +22,10 @@ function App() {
   const [stocks, setStocks] = useState([])
   const [stocksLoading, setStocksLoading] = useState(true)
   const [stocksError, setStocksError] = useState('')
+  const [showAddStockForm, setShowAddStockForm] = useState(false)
+  const [creatingStock, setCreatingStock] = useState(false)
+  const [createStockError, setCreateStockError] = useState('')
+  const [createStockSuccess, setCreateStockSuccess] = useState('')
 
   const [watchlist, setWatchlist] = useState([])
   const [watchlistStockIds, setWatchlistStockIds] = useState([])
@@ -36,20 +40,26 @@ function App() {
   // Declare token before any effect that uses it.
   const token = localStorage.getItem('accessToken')
 
-  // Load stocks and their latest recorded prices.
+  // Load all stocks and their latest recorded prices.
   useEffect(() => {
     if (!token) {
       setStocksLoading(false)
       return
     }
 
-    const fetchStocks = async () => {
-      try {
-        setStocksError('')
+    let cancelled = false
 
-        const response = await api.get('/api/stocks')
+    const fetchStocks = async () => {
+      setStocksLoading(true)
+      setStocksError('')
+
+      try {
+        const response = await api.get('/api/stocks', {
+          params: { page: 0, size: 100 },
+        })
+
         const data = response.data
-        const stockList = Array.isArray(data) ? data : data.content
+        const stockList = Array.isArray(data) ? data : data?.content
 
         if (!Array.isArray(stockList)) {
           throw new Error('Unexpected response format from the stocks API.')
@@ -64,24 +74,33 @@ function App() {
 
                 return {
                   ...stock,
-                  latestPrice: priceResponse.data.price,
-                  recordedAt: priceResponse.data.recordedAt,
+                  latestPrice: priceResponse.data?.price ?? null,
+                  recordedAt: priceResponse.data?.recordedAt ?? null,
                 }
               } catch (error) {
-                if (error.response?.status === 404) {
-                  return {
-                    ...stock,
-                    latestPrice: null,
-                    recordedAt: null,
-                  }
+                if (error.response?.status === 401) {
+                  throw error
                 }
 
-                throw error
+                console.error(
+                    `Could not load latest price for ${stock.symbol}:`,
+                    error.response?.status,
+                    error.response?.data ?? error.message
+                )
+
+                // A price failure for one stock must not hide the whole catalogue.
+                return {
+                  ...stock,
+                  latestPrice: null,
+                  recordedAt: null,
+                }
               }
             })
         )
 
-        setStocks(stocksWithPrices)
+        if (!cancelled) {
+          setStocks(stocksWithPrices)
+        }
       } catch (error) {
         if (error.response?.status === 401) {
           localStorage.removeItem('accessToken')
@@ -89,17 +108,28 @@ function App() {
           return
         }
 
-        setStocksError(
-            error.response?.data?.detail ||
-            error.response?.data?.message ||
-            'Could not load stocks and prices. Please try again.'
-        )
+        console.error('Failed to load stocks:', error)
+
+        if (!cancelled) {
+          setStocksError(
+              error.response?.data?.detail ||
+              error.response?.data?.message ||
+              error.message ||
+              'Could not load stocks. Please try again.'
+          )
+        }
       } finally {
-        setStocksLoading(false)
+        if (!cancelled) {
+          setStocksLoading(false)
+        }
       }
     }
 
     fetchStocks()
+
+    return () => {
+      cancelled = true
+    }
   }, [token])
 
   // Load historical prices when a stock's details page opens.
@@ -298,6 +328,92 @@ function App() {
     setSelectedStock(stock)
     setActivePage('Stock Details')
     setSearch('')
+  }
+
+  // Create a new stock in the shared stock catalogue.
+  const handleCreateStock = async (event) => {
+    event.preventDefault()
+    setCreateStockError('')
+    setCreateStockSuccess('')
+
+    const form = event.currentTarget
+    const formData = new FormData(form)
+    const symbol = String(formData.get('symbol') ?? '').trim().toUpperCase()
+    const companyName = String(formData.get('companyName') ?? '').trim()
+    const exchange = String(formData.get('exchange') ?? '').trim().toUpperCase()
+
+    if (!symbol || !companyName || !exchange) {
+      setCreateStockError('Please fill in the stock symbol, company name, and exchange.')
+      return
+    }
+
+    setCreatingStock(true)
+    try {
+      // CreateStockRequest accepts symbol, companyName, and exchange.
+      const response = await api.post('/api/stocks', {
+        symbol,
+        companyName,
+        exchange,
+      })
+
+      const createdStock = {
+        ...response.data,
+        latestPrice: null,
+        recordedAt: null,
+      }
+
+      // The backend performs the initial sync after the stock is created.
+      // Fetch the saved price before adding the stock to the UI.
+      let stockWithPrice = createdStock
+      try {
+        const priceResponse = await api.get(
+            `/api/stocks/${createdStock.id}/prices/latest`
+        )
+
+        stockWithPrice = {
+          ...createdStock,
+          latestPrice: priceResponse.data.price,
+          recordedAt: priceResponse.data.recordedAt,
+        }
+      } catch (priceError) {
+        // Keep the stock visible even if a price is not available yet.
+        console.warn(
+            `Latest price is not available yet for ${createdStock.symbol}`,
+            priceError
+        )
+      }
+
+      setStocks((currentStocks) => {
+        if (currentStocks.some((stock) => stock.symbol === stockWithPrice.symbol)) {
+          return currentStocks.map((stock) =>
+              stock.symbol === stockWithPrice.symbol
+                  ? { ...stock, ...stockWithPrice }
+                  : stock
+          )
+        }
+        return [...currentStocks, stockWithPrice]
+      })
+      setSearch('')
+      setCreateStockSuccess(`${symbol} was added to the stock catalogue.`)
+      setShowAddStockForm(false)
+      form.reset()
+    } catch (error) {
+      if (error.response?.status === 401) {
+        localStorage.removeItem('accessToken')
+        window.location.href = '/'
+        return
+      }
+
+      setCreateStockError(
+          error.response?.data?.detail ||
+          error.response?.data?.message ||
+          (error.response?.status === 409
+              ? 'This stock already exists in the catalogue.'
+              : 'Could not add the stock. Please check the details and try again.')
+      )
+    } finally {
+      setCreatingStock(false)
+    }
   }
 
   // Add a stock to the watchlist.
@@ -819,13 +935,27 @@ function App() {
                     <p>Keep an eye on the stocks that matter to you.</p>
                   </div>
 
-                  <input
-                      className="search-input"
-                      type="search"
-                      placeholder="Search watchlist..."
-                      value={search}
-                      onChange={(event) => setSearch(event.target.value)}
-                  />
+                  <div className="stock-search">
+                    <input
+                        className="search-input"
+                        type="search"
+                        placeholder="Search watchlist..."
+                        value={search}
+                        onChange={(event) => setSearch(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter') {
+                            setSearch(event.currentTarget.value.trim())
+                          }
+                        }}
+                    />
+                    <button
+                        type="button"
+                        className="search-button"
+                        onClick={() => setSearch(search.trim())}
+                    >
+                      Search
+                    </button>
+                  </div>
                 </div>
 
                 <div className="stats-grid">
@@ -989,16 +1119,91 @@ function App() {
                 <div className="section-heading">
                   <div>
                     <h2>All stocks</h2>
-                    <p>Browse stocks and add the ones you want to your watchlist.</p>
+                    <p>Browse stocks, add new stocks to the catalogue, and save stocks to your watchlist.</p>
                   </div>
-                  <input
-                      className="search-input"
-                      type="search"
-                      placeholder="Search stocks..."
-                      value={search}
-                      onChange={(event) => setSearch(event.target.value)}
-                  />
+                  <div className="stocks-heading-actions">
+                    <button
+                        type="button"
+                        className="search-button add-stock-toggle"
+                        onClick={() => {
+                          setShowAddStockForm((isOpen) => !isOpen)
+                          setCreateStockError('')
+                          setCreateStockSuccess('')
+                        }}
+                    >
+                      {showAddStockForm ? 'Cancel' : '+ Add Stock'}
+                    </button>
+                    <div className="stock-search">
+                      <input
+                          className="search-input"
+                          type="search"
+                          placeholder="Search stocks..."
+                          value={search}
+                          onChange={(event) => setSearch(event.target.value)}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter') {
+                              setSearch(event.currentTarget.value.trim())
+                            }
+                          }}
+                      />
+                      <button
+                          type="button"
+                          className="search-button"
+                          onClick={() => setSearch(search.trim())}
+                      >
+                        Search
+                      </button>
+                    </div>
+                  </div>
                 </div>
+
+                {createStockSuccess && (
+                    <p className="form-success" role="status">{createStockSuccess}</p>
+                )}
+
+                {showAddStockForm && (
+                    <form className="stat-card add-stock-form" onSubmit={handleCreateStock}>
+                      <h3>Add a stock to the catalogue</h3>
+                      <p className="muted">This adds the stock for all users. It does not automatically add it to your personal watchlist.</p>
+                      <div className="add-stock-fields">
+                        <div className="login-field">
+                          <label htmlFor="new-stock-symbol">Stock symbol</label>
+                          <input
+                              id="new-stock-symbol"
+                              className="search-input"
+                              name="symbol"
+                              placeholder="e.g. TATASTEEL"
+                              maxLength={20}
+                              required
+                          />
+                        </div>
+                        <div className="login-field">
+                          <label htmlFor="new-stock-company">Company name</label>
+                          <input
+                              id="new-stock-company"
+                              className="search-input"
+                              name="companyName"
+                              placeholder="e.g. Tata Steel Limited"
+                              maxLength={150}
+                              required
+                          />
+                        </div>
+                        <div className="login-field">
+                          <label htmlFor="new-stock-exchange">Exchange</label>
+                          <select id="new-stock-exchange" className="search-input" name="exchange" defaultValue="NSE" required>
+                            <option value="NSE">NSE</option>
+                            <option value="BSE">BSE</option>
+                          </select>
+                        </div>
+                      </div>
+                      {createStockError && (
+                          <p className="login-error" role="alert">{createStockError}</p>
+                      )}
+                      <button type="submit" className="login-button" disabled={creatingStock}>
+                        {creatingStock ? 'Adding stock...' : 'Save Stock'}
+                      </button>
+                    </form>
+                )}
 
                 {stocksLoading && (
                     <p className="demo-note">Loading stocks and latest prices...</p>
@@ -1115,13 +1320,27 @@ function App() {
                       <p>Latest prices recorded by your StockPulse backend</p>
                     </div>
 
-                    <input
-                        className="search-input"
-                        type="search"
-                        placeholder="Search stocks..."
-                        value={search}
-                        onChange={(event) => setSearch(event.target.value)}
-                    />
+                    <div className="stock-search">
+                      <input
+                          className="search-input"
+                          type="search"
+                          placeholder="Search stocks..."
+                          value={search}
+                          onChange={(event) => setSearch(event.target.value)}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter') {
+                              setSearch(event.currentTarget.value.trim())
+                            }
+                          }}
+                      />
+                      <button
+                          type="button"
+                          className="search-button"
+                          onClick={() => setSearch(search.trim())}
+                      >
+                        Search
+                      </button>
+                    </div>
                   </div>
 
                   {stocksLoading && (
@@ -1220,3 +1439,4 @@ function App() {
 }
 
 export default App
+

@@ -11,6 +11,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.web.server.ResponseStatusException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -92,6 +93,21 @@ public class GlobalExceptionHandler {
         );
 
         problem.setTitle("Duplicate watchlist entry");
+        return problem;
+    }
+
+    @ExceptionHandler(ResponseStatusException.class)
+    public ProblemDetail handleResponseStatusException(
+            ResponseStatusException exception) {
+
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                exception.getStatusCode(),
+                exception.getReason() != null
+                        ? exception.getReason()
+                        : "Request failed"
+        );
+
+        problem.setTitle("Request failed");
         return problem;
     }
 

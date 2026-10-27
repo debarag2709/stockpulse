@@ -7,32 +7,57 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
-
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.annotation.Propagation;
 @Service
 public class StockPriceHistoryService {
 
-    private final StockPriceHistoryRepository priceHistoryRepository;
     private final StockRepository stockRepository;
+    private final StockPriceHistoryRepository priceHistoryRepository;
 
     public StockPriceHistoryService(
-            StockPriceHistoryRepository priceHistoryRepository,
-            StockRepository stockRepository) {
-        this.priceHistoryRepository = priceHistoryRepository;
+            StockRepository stockRepository,
+            StockPriceHistoryRepository priceHistoryRepository) {
         this.stockRepository = stockRepository;
+        this.priceHistoryRepository = priceHistoryRepository;
     }
 
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public StockPriceHistory recordPrice(Long stockId, BigDecimal price) {
         if (price == null || price.signum() < 0) {
             throw new IllegalArgumentException("Price must be zero or greater");
         }
 
-        var stock = stockRepository.findById(stockId)
+        Stock stock = stockRepository.findById(stockId)
                 .orElseThrow(() ->
                         new IllegalArgumentException("Stock not found: " + stockId));
 
         StockPriceHistory history = new StockPriceHistory(stock, price);
-        return priceHistoryRepository.saveAndFlush(history);
+
+        System.out.println(
+                "Transaction active: " +
+                        org.springframework.transaction.support.TransactionSynchronizationManager
+                                .isActualTransactionActive()
+        );
+
+        System.out.println(
+                "Transaction name: " +
+                        TransactionSynchronizationManager.getCurrentTransactionName()
+        );
+        System.out.println(
+                "Transaction read-only: " +
+                        TransactionSynchronizationManager.isCurrentTransactionReadOnly()
+        );
+
+        StockPriceHistory saved = priceHistoryRepository.saveAndFlush(history);
+
+        System.out.println(
+                "PRICE SAVE CHECK: id=" + saved.getId()
+                        + ", stockId=" + saved.getStock().getId()
+                        + ", price=" + saved.getPrice()
+        );
+
+        return saved;
     }
 
     @Transactional(readOnly = true)
@@ -43,10 +68,6 @@ public class StockPriceHistoryService {
 
     @Transactional(readOnly = true)
     public List<StockPriceHistory> getPriceHistory(Long stockId) {
-        if (!stockRepository.existsById(stockId)) {
-            throw new IllegalArgumentException("Stock not found: " + stockId);
-        }
-
         return priceHistoryRepository
                 .findByStockIdOrderByRecordedAtDesc(stockId);
     }

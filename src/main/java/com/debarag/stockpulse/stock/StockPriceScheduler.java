@@ -16,18 +16,22 @@ public class StockPriceScheduler {
 
     public StockPriceScheduler(StockPriceSyncService syncService) {
         this.syncService = syncService;
+        log.info("StockPriceScheduler bean created");
     }
 
     /**
-     * Runs at 10 AM, 12 PM and 2 PM IST on weekdays.
-     * This conservative schedule helps preserve the free API quota.
+     * Runs once at 9 PM IST, Monday through Friday.
      */
-    @Scheduled(cron = "0 0 10,12,14 * * MON-FRI", zone = "Asia/Kolkata")
+    @Scheduled(
+            cron = "0 0 21 * * MON-FRI",
+            zone = "Asia/Kolkata"
+    )
     public void syncStockPrices() {
         log.info("Starting scheduled stock-price synchronization");
 
         try {
             int recordedCount = syncService.syncActiveStocks();
+
             log.info(
                     "Scheduled stock-price synchronization completed. Prices recorded: {}",
                     recordedCount

@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -15,12 +16,14 @@ class StockServiceTest {
 
     @Mock
     private StockRepository stockRepository;
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
 
     private StockService stockService;
 
     @BeforeEach
     void setUp() {
-        stockService = new StockService(stockRepository);
+        stockService = new StockService(stockRepository, eventPublisher);
     }
 
     @Test

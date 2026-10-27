@@ -4,17 +4,12 @@ package com.debarag.stockpulse.stock;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.bind.annotation.PathVariable;
-
-
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.web.PageableDefault;
-import org.springframework.data.domain.Sort;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.GetMapping;
 
 import java.util.List;
 
@@ -23,9 +18,13 @@ import java.util.List;
 public class StockController {
 
     private final StockService stockService;
+    private final StockPriceSyncService stockPriceSyncService;
 
-    public StockController(StockService stockService) {
+    public StockController(
+            StockService stockService,
+            StockPriceSyncService stockPriceSyncService) {
         this.stockService = stockService;
+        this.stockPriceSyncService = stockPriceSyncService;
     }
 
     public record CreateStockRequest(
@@ -34,12 +33,17 @@ public class StockController {
             @NotBlank @Size(max = 20) String exchange
     ) {}
 
+    public record UpdateStockRequest(
+            @NotBlank @Size(max = 150) String companyName,
+            @NotBlank @Size(max = 20) String exchange,
+            boolean active
+    ) {}
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public StockResponse createStock(
-            @Valid @RequestBody CreateStockRequest request
-    ) {
+            @Valid @RequestBody CreateStockRequest request) {
+
         Stock stock = stockService.createStock(
                 request.symbol(),
                 request.companyName(),
@@ -48,15 +52,6 @@ public class StockController {
 
         return StockResponse.from(stock);
     }
-
-
-    public record UpdateStockRequest(
-            @NotBlank @Size(max = 150) String companyName,
-            @NotBlank @Size(max = 20) String exchange,
-            boolean active
-    ) {}
-
-
 
     @GetMapping
     public Page<StockResponse> getAllStocks(
@@ -70,7 +65,6 @@ public class StockController {
                     "page must be >= 0 and size must be between 1 and 100"
             );
         }
-
 
         if (!List.of("id", "symbol", "companyName", "exchange", "active")
                 .contains(sortBy)) {
@@ -88,7 +82,7 @@ public class StockController {
             );
         }
 
-        Pageable pageable = org.springframework.data.domain.PageRequest.of(
+        Pageable pageable = PageRequest.of(
                 page,
                 size,
                 Sort.by(sortDirection, sortBy)
@@ -98,12 +92,10 @@ public class StockController {
                 .map(StockResponse::from);
     }
 
-
     @GetMapping("/{id}")
     public StockResponse getStockById(@PathVariable Long id) {
         return StockResponse.from(stockService.getStockById(id));
     }
-
 
     @PutMapping("/{id}")
     public StockResponse updateStock(
@@ -120,4 +112,14 @@ public class StockController {
         return StockResponse.from(updatedStock);
     }
 
+    /**
+     * Triggers a price sync for all active stocks.
+     */
+    @PostMapping("/sync-prices")
+    public SyncPricesResponse syncPrices() {
+        int recordedCount = stockPriceSyncService.syncActiveStocks();
+        return new SyncPricesResponse(recordedCount);
+    }
+
+    public record SyncPricesResponse(int pricesRecorded) {}
 }
