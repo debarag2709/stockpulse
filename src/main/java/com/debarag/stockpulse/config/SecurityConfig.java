@@ -22,8 +22,7 @@ public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
 
-    public SecurityConfig(
-            JwtAuthenticationFilter jwtAuthenticationFilter) {
+    public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
     }
 
@@ -39,7 +38,7 @@ public class SecurityConfig {
         configuration.setAllowedOrigins(List.of(
                 "http://localhost:5173",
                 "http://localhost:5174",
-                "https://curious-malabi-00f0f7.netlify.app"
+                "https://stockpulse123.netlify.app"
         ));
 
         configuration.setAllowedMethods(List.of(
@@ -79,17 +78,13 @@ public class SecurityConfig {
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(session -> session
-                        .sessionCreationPolicy(
-                                SessionCreationPolicy.STATELESS
-                        )
+                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
                 .httpBasic(basic -> basic.disable())
                 .formLogin(form -> form.disable())
                 .exceptionHandling(exceptions -> exceptions
                         .authenticationEntryPoint(
-                                new HttpStatusEntryPoint(
-                                        HttpStatus.UNAUTHORIZED
-                                )
+                                new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)
                         )
                 )
                 .addFilterBefore(
