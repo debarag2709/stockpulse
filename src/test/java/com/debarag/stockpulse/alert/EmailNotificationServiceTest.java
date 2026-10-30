@@ -3,34 +3,38 @@ package com.debarag.stockpulse.alert;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.springframework.mail.SimpleMailMessage;
-import org.springframework.mail.javamail.JavaMailSender;
-import org.mockito.ArgumentCaptor;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.client.MockRestServiceServer;
+import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
 
 import java.math.BigDecimal;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.*;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.*;
 
-@ExtendWith(MockitoExtension.class)
 class EmailNotificationServiceTest {
 
-    @Mock
-    private JavaMailSender mailSender;
-
     private EmailNotificationService emailNotificationService;
+    private MockRestServiceServer mockServer;
 
     @BeforeEach
     void setUp() {
+        RestClient.Builder builder = RestClient.builder();
+
+        mockServer = MockRestServiceServer
+                .bindTo(builder)
+                .build();
+
         emailNotificationService =
-                new EmailNotificationService(mailSender);
+                new EmailNotificationService("test-resend-api-key", builder);
     }
 
     @Test
     void shouldSendPriceAlertEmail() {
+
         PriceAlertTriggeredEvent event = new PriceAlertTriggeredEvent(
                 1L,
                 "investor@example.com",
@@ -40,28 +44,32 @@ class EmailNotificationServiceTest {
                 PriceAlert.AlertCondition.ABOVE
         );
 
-        emailNotificationService.sendPriceAlertEmail(event);
+        mockServer.expect(requestTo("https://api.resend.com/emails"))
+                .andExpect(method(org.springframework.http.HttpMethod.POST))
+                .andExpect(header(
+                        HttpHeaders.AUTHORIZATION,
+                        "Bearer test-resend-api-key"))
+                .andExpect(content().contentTypeCompatibleWith(
+                        MediaType.APPLICATION_JSON))
+                .andExpect(content().string(
+                        org.hamcrest.Matchers.containsString(
+                                "investor@example.com")))
+                .andExpect(content().string(
+                        org.hamcrest.Matchers.containsString(
+                                "StockPulse Price Alert: RELIANCE")))
+                .andExpect(content().string(
+                        org.hamcrest.Matchers.containsString("1510.0000")))
+                .andRespond(withSuccess());
 
-        ArgumentCaptor<SimpleMailMessage> captor =
-                ArgumentCaptor.forClass(SimpleMailMessage.class);
+        assertDoesNotThrow(
+                () -> emailNotificationService.sendPriceAlertEmail(event));
 
-        verify(mailSender).send(captor.capture());
-
-        SimpleMailMessage message = captor.getValue();
-
-        assertArrayEquals(
-                new String[]{"investor@example.com"},
-                message.getTo());
-        assertEquals(
-                "StockPulse Price Alert: RELIANCE",
-                message.getSubject());
-        assertTrue(message.getText().contains("1510.0000"));
-        assertTrue(message.getText().contains("1500.0000"));
-        assertTrue(message.getText().contains("reached or exceeded"));
+        mockServer.verify();
     }
 
     @Test
-    void shouldNotThrowWhenEmailDeliveryFails() {
+    void shouldThrowWhenResendDeliveryFails() {
+
         PriceAlertTriggeredEvent event = new PriceAlertTriggeredEvent(
                 2L,
                 "investor@example.com",
@@ -71,14 +79,15 @@ class EmailNotificationServiceTest {
                 PriceAlert.AlertCondition.ABOVE
         );
 
-        doThrow(new org.springframework.mail.MailSendException(
-                "Simulated SMTP failure"))
-                .when(mailSender)
-                .send(any(SimpleMailMessage.class));
+        mockServer.expect(requestTo("https://api.resend.com/emails"))
+                .andExpect(method(org.springframework.http.HttpMethod.POST))
+                .andRespond(withServerError());
 
-        assertDoesNotThrow(
-                () -> emailNotificationService.sendPriceAlertEmail(event));
+        assertThrows(
+                RestClientException.class,
+                () -> emailNotificationService.sendPriceAlertEmail(event)
+        );
 
-        verify(mailSender).send(any(SimpleMailMessage.class));
+        mockServer.verify();
     }
 }

@@ -3,10 +3,14 @@ package com.debarag.stockpulse.alert;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.mail.SimpleMailMessage;
-import org.springframework.mail.MailException;
-import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
+
+import java.util.List;
+import java.util.Map;
 
 @Service
 public class EmailNotificationService {
@@ -14,30 +18,41 @@ public class EmailNotificationService {
     private static final Logger log =
             LoggerFactory.getLogger(EmailNotificationService.class);
 
-    private final JavaMailSender mailSender;
+    private static final String RESEND_API_URL =
+            "https://api.resend.com/emails";
 
-    public EmailNotificationService(JavaMailSender mailSender) {
-        this.mailSender = mailSender;
+    private final RestClient restClient;
+    private final String apiKey;
+
+    public EmailNotificationService(
+            @Value("${RESEND_API_KEY:}") String apiKey,
+            RestClient.Builder restClientBuilder) {
+        this.apiKey = apiKey;
+        this.restClient = restClientBuilder.build();
     }
 
     public void sendPriceAlertEmail(PriceAlertTriggeredEvent event) {
-        SimpleMailMessage message = new SimpleMailMessage();
 
-        message.setTo(event.recipientEmail());
-        message.setSubject(
-                "StockPulse Price Alert: " + event.stockSymbol());
+        if (apiKey == null || apiKey.isBlank()) {
+            throw new IllegalStateException(
+                    "RESEND_API_KEY environment variable is not configured");
+        }
 
-        String conditionText = event.condition() == PriceAlert.AlertCondition.ABOVE
-                ? "reached or exceeded"
-                : "reached or fallen below";
+        String conditionText =
+                event.condition() == PriceAlert.AlertCondition.ABOVE
+                        ? "reached or exceeded"
+                        : "reached or fallen below";
 
-        message.setText("""
+        String subject =
+                "StockPulse Price Alert: " + event.stockSymbol();
+
+        String text = """
                 Your StockPulse price alert has been triggered.
 
                 Stock: %s
                 Condition: %s
-                Target price: ₹%s
-                Current price: ₹%s
+                Target price: Rs. %s
+                Current price: Rs. %s
 
                 This price was reported by your configured market-data provider.
                 Prices may be delayed.
@@ -49,18 +64,51 @@ public class EmailNotificationService {
                 conditionText,
                 event.targetPrice().toPlainString(),
                 event.currentPrice().toPlainString()
-        ));
+        );
+
+        String html = """
+                <h2>StockPulse Price Alert</h2>
+                <p>Your price alert has been triggered.</p>
+                <p><b>Stock:</b> %s</p>
+                <p><b>Condition:</b> %s</p>
+                <p><b>Target price:</b> Rs. %s</p>
+                <p><b>Current price:</b> Rs. %s</p>
+                <p>Prices may be delayed.</p>
+                <p>Regards,<br/>StockPulse</p>
+                """.formatted(
+                event.stockSymbol(),
+                conditionText,
+                event.targetPrice().toPlainString(),
+                event.currentPrice().toPlainString()
+        );
+
+        Map<String, Object> requestBody = Map.of(
+                "from", "StockPulse <onboarding@resend.dev>",
+                "to", List.of(event.recipientEmail()),
+                "subject", subject,
+                "text", text,
+                "html", html
+        );
 
         try {
-            mailSender.send(message);
+            restClient.post()
+                    .uri(RESEND_API_URL)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .header("Authorization", "Bearer " + apiKey)
+                    .body(requestBody)
+                    .retrieve()
+                    .toBodilessEntity();
+
             log.info(
-                    "Price alert email sent for alert ID {}",
+                    "Price alert email accepted by Resend for alert ID {}",
                     event.alertId());
-        } catch (MailException exception) {
+
+        } catch (RestClientException exception) {
             log.error(
-                    "Failed to send email for price alert ID {}",
+                    "Resend email request failed for alert ID {}",
                     event.alertId(),
                     exception);
+            throw exception;
         }
     }
 }
