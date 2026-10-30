@@ -2,6 +2,8 @@
 package com.debarag.stockpulse.alert;
 
 import com.debarag.stockpulse.stock.Stock;
+import com.debarag.stockpulse.stock.StockPriceHistory;
+import com.debarag.stockpulse.stock.StockPriceHistoryService;
 import com.debarag.stockpulse.user.User;
 import com.debarag.stockpulse.user.UserRepository;
 import jakarta.validation.Valid;
@@ -21,12 +23,15 @@ public class PriceAlertController {
 
     private final PriceAlertService priceAlertService;
     private final UserRepository userRepository;
+    private final StockPriceHistoryService priceHistoryService;
 
     public PriceAlertController(
             PriceAlertService priceAlertService,
-            UserRepository userRepository) {
+            UserRepository userRepository,
+            StockPriceHistoryService priceHistoryService) {
         this.priceAlertService = priceAlertService;
         this.userRepository = userRepository;
+        this.priceHistoryService = priceHistoryService;
     }
 
     @PostMapping
@@ -64,6 +69,37 @@ public class PriceAlertController {
 
         User user = getAuthenticatedUser(authentication);
         priceAlertService.cancelAlert(user.getId(), alertId);
+    }
+
+    /**
+     * TEMPORARY TEST ENDPOINT.
+     *
+     * Evaluates active price alerts using the latest price
+     * already stored in the database.
+     *
+     * Does not call the external market-data API.
+     */
+    @PostMapping("/test/{stockId}")
+    public String testPriceAlert(
+            @PathVariable Long stockId,
+            Authentication authentication) {
+
+        User user = getAuthenticatedUser(authentication);
+
+        StockPriceHistory latestPrice = priceHistoryService
+                .getLatestPrice(stockId)
+                .orElseThrow(() ->
+                        new IllegalArgumentException(
+                                "No recorded price found for stock ID " + stockId));
+
+        int triggeredCount = priceAlertService.evaluateAlerts(
+                stockId,
+                latestPrice.getPrice()
+        );
+
+        return "Evaluated latest price: " + latestPrice.getPrice()
+                + ". Triggered alerts: " + triggeredCount
+                + ". Account: " + user.getEmail();
     }
 
     private User getAuthenticatedUser(Authentication authentication) {
