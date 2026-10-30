@@ -20,27 +20,6 @@ public class IndianApiClient {
                 .build();
     }
 
-//    public IndianApiStockResponse getStockData(String stockName) {
-//        return restClient.get()
-//                .uri(uriBuilder -> uriBuilder
-//                        .path("/stock")
-//                        .queryParam("name", stockName)
-//                        .build())
-//                .retrieve()
-//                .body(IndianApiStockResponse.class);
-//    }
-
-//    public String getStockDataRaw(String stockName) {
-//        return restClient.get()
-//                .uri(uriBuilder -> uriBuilder
-//                        .path("/stock")
-//                        .queryParam("name", stockName)
-//                        .build())
-//                .retrieve()
-//                .body(String.class);
-//    }
-
-
     public IndianApiStockResponse getStockData(String stockName) {
         return restClient.get()
                 .uri(uriBuilder -> uriBuilder
@@ -50,16 +29,4 @@ public class IndianApiClient {
                 .retrieve()
                 .body(IndianApiStockResponse.class);
     }
-
-    public String getStockDataRaw(String stockName) {
-        return restClient.get()
-                .uri(uriBuilder -> uriBuilder
-                        .path("/stock")
-                        .queryParam("name", stockName)
-                        .build())
-                .retrieve()
-                .body(String.class);
-    }
-
-
 }

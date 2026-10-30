@@ -1,6 +1,7 @@
 
 package com.debarag.stockpulse.stock;
 
+import com.debarag.stockpulse.alert.PriceAlertService;
 import com.debarag.stockpulse.client.IndianApiClient;
 import com.debarag.stockpulse.client.IndianApiStockResponse;
 import org.junit.jupiter.api.BeforeEach;
@@ -32,6 +33,9 @@ class StockPriceSyncServiceTest {
     @Mock
     private StockPriceHistoryService priceHistoryService;
 
+    @Mock
+    private PriceAlertService priceAlertService;
+
     @InjectMocks
     private StockPriceSyncService syncService;
 
@@ -56,13 +60,15 @@ class StockPriceSyncServiceTest {
                 "160.00"
         );
 
-        when(indianApiClient.getStockData("Tata Steel"))
+        when(indianApiClient.getStockData("TATASTEEL"))
                 .thenReturn(response);
 
         int recordedCount = syncService.syncActiveStocks();
 
         assertEquals(1, recordedCount);
-        verify(indianApiClient).getStockData("Tata Steel");
+
+        verify(indianApiClient).getStockData("TATASTEEL");
+
         verify(priceHistoryService)
                 .recordPrice(stock.getId(), new BigDecimal("175.74"));
     }
@@ -70,12 +76,15 @@ class StockPriceSyncServiceTest {
     @Test
     void shouldSkipInactiveStocks() {
         stock.setActive(false);
+
         when(stockRepository.findAll()).thenReturn(List.of(stock));
 
         int recordedCount = syncService.syncActiveStocks();
 
         assertEquals(0, recordedCount);
+
         verify(indianApiClient, never()).getStockData(any());
+
         verify(priceHistoryService, never())
                 .recordPrice(any(), any());
     }
@@ -94,13 +103,15 @@ class StockPriceSyncServiceTest {
                 "160.00"
         );
 
-        when(indianApiClient.getStockData("Tata Steel"))
+        when(indianApiClient.getStockData("TATASTEEL"))
                 .thenReturn(response);
 
         int recordedCount = syncService.syncActiveStocks();
 
         assertEquals(0, recordedCount);
-        verify(indianApiClient).getStockData("Tata Steel");
+
+        verify(indianApiClient).getStockData("TATASTEEL");
+
         verify(priceHistoryService, never())
                 .recordPrice(any(), any());
     }
@@ -112,7 +123,7 @@ class StockPriceSyncServiceTest {
         when(stockRepository.findAll())
                 .thenReturn(List.of(stock, secondStock));
 
-        when(indianApiClient.getStockData("Tata Steel"))
+        when(indianApiClient.getStockData("TATASTEEL"))
                 .thenThrow(new RuntimeException("Provider unavailable"));
 
         IndianApiStockResponse response = new IndianApiStockResponse(
@@ -125,14 +136,16 @@ class StockPriceSyncServiceTest {
                 "1300.00"
         );
 
-        when(indianApiClient.getStockData("Infosys"))
+        when(indianApiClient.getStockData("INFY"))
                 .thenReturn(response);
 
         int recordedCount = syncService.syncActiveStocks();
 
         assertEquals(1, recordedCount);
-        verify(indianApiClient).getStockData("Tata Steel");
-        verify(indianApiClient).getStockData("Infosys");
+
+        verify(indianApiClient).getStockData("TATASTEEL");
+        verify(indianApiClient).getStockData("INFY");
+
         verify(priceHistoryService)
                 .recordPrice(secondStock.getId(), new BigDecimal("1500.00"));
     }

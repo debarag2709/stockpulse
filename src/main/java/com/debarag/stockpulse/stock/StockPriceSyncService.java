@@ -7,7 +7,6 @@ import com.debarag.stockpulse.client.IndianApiStockResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -59,7 +58,6 @@ public class StockPriceSyncService {
     /**
      * Sync one stock immediately after creation.
      */
-
     public boolean syncStockById(Long stockId) {
         return stockRepository.findById(stockId)
                 .map(this::syncStock)
@@ -79,30 +77,10 @@ public class StockPriceSyncService {
 
             if (response == null || response.currentPrice() == null) {
                 log.warn(
-                        "No price data returned for stock {} ({}). Fetching raw response for diagnosis.",
+                        "No price data returned for stock {} ({}).",
                         stock.getSymbol(),
                         stock.getId()
                 );
-
-                try {
-                    String rawResponse =
-                            indianApiClient.getStockDataRaw(
-                                    stock.getCompanyName()
-                            );
-
-                    log.info(
-                            "Raw IndianAPI response for {}: {}",
-                            stock.getSymbol(),
-                            rawResponse
-                    );
-                } catch (RuntimeException rawException) {
-                    log.error(
-                            "Could not fetch raw API response for {}",
-                            stock.getSymbol(),
-                            rawException
-                    );
-                }
-
                 return false;
             }
 

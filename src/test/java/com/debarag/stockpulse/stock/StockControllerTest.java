@@ -36,6 +36,9 @@ class StockControllerTest {
     private StockService stockService;
 
     @MockitoBean
+    private StockPriceSyncService stockPriceSyncService;
+
+    @MockitoBean
     private JwtService jwtService;
 
     @MockitoBean

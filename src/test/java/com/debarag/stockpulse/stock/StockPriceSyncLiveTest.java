@@ -1,8 +1,10 @@
+
 package com.debarag.stockpulse.stock;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.junit.jupiter.EnabledIf;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -10,6 +12,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
         "spring.datasource.url=jdbc:postgresql://localhost:5433/stockpulse",
         "spring.datasource.username=stockpulse"
 })
+@EnabledIf(
+        expression = "${stockpulse.live-tests.enabled:false}",
+        loadContext = true
+)
 class StockPriceSyncLiveTest {
 
     @Autowired

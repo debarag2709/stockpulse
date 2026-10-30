@@ -1,7 +1,6 @@
 
 package com.debarag.stockpulse.client;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -18,8 +17,10 @@ class IndianApiClientTest {
 
     private HttpServer server;
     private IndianApiClient client;
+
     private final AtomicReference<String> capturedApiKey =
             new AtomicReference<>();
+
     private final AtomicReference<String> capturedQuery =
             new AtomicReference<>();
 
@@ -51,8 +52,10 @@ class IndianApiClientTest {
                     """;
 
             byte[] body = json.getBytes(StandardCharsets.UTF_8);
+
             exchange.getResponseHeaders().set(
                     "Content-Type", "application/json");
+
             exchange.sendResponseHeaders(200, body.length);
 
             try (var output = exchange.getResponseBody()) {
@@ -89,16 +92,6 @@ class IndianApiClientTest {
         assertEquals("224.40", response.yearHigh());
         assertEquals("160.00", response.yearLow());
 
-        assertEquals("test-api-key", capturedApiKey.get());
-        assertEquals("name=Tata%20Steel", capturedQuery.get());
-    }
-
-    @Test
-    void getStockDataRawReturnsResponseBody() {
-        String response = client.getStockDataRaw("Tata Steel");
-
-        assertNotNull(response);
-        assertTrue(response.contains("\"companyName\": \"Tata Steel\""));
         assertEquals("test-api-key", capturedApiKey.get());
         assertEquals("name=Tata%20Steel", capturedQuery.get());
     }

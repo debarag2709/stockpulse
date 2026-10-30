@@ -20,25 +20,25 @@ public class StockPriceScheduler {
     }
 
     /**
-     * Runs once at 9 PM IST, Monday through Friday.
+     * Runs once every day at 9 PM IST.
      */
     @Scheduled(
-            cron = "0 0 21 * * MON-FRI",
+            cron = "0 0 21 * * *",
             zone = "Asia/Kolkata"
     )
     public void syncStockPrices() {
-        log.info("Starting scheduled stock-price synchronization");
+        log.info("Starting daily stock-price synchronization");
 
         try {
             int recordedCount = syncService.syncActiveStocks();
 
             log.info(
-                    "Scheduled stock-price synchronization completed. Prices recorded: {}",
+                    "Daily stock-price synchronization completed. Prices recorded: {}",
                     recordedCount
             );
         } catch (RuntimeException exception) {
             log.error(
-                    "Scheduled stock-price synchronization failed",
+                    "Daily stock-price synchronization failed",
                     exception
             );
         }
