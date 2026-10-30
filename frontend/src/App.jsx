@@ -36,6 +36,10 @@ function App() {
   const [alertsLoading, setAlertsLoading] = useState(false)
   const [alertsError, setAlertsError] = useState('')
   const [creatingAlert, setCreatingAlert] = useState(false)
+  const [showWatchlistModal, setShowWatchlistModal] = useState(false)
+  const [watchlistStockToAdd, setWatchlistStockToAdd] = useState(null)
+  const [addingToWatchlist, setAddingToWatchlist] = useState(false)
+  const [watchlistModalError, setWatchlistModalError] = useState('')
 
   // Declare token before any effect that uses it.
   const token = localStorage.getItem('accessToken')
@@ -417,40 +421,91 @@ function App() {
   }
 
   // Add a stock to the watchlist.
-  const handleAddToWatchlist = async (stockId) => {
-    setWatchlistError('')
+  const handleAddToWatchlist = (stockId) => {
+    const stock = stocks.find((item) => item.id === stockId)
+
+    if (!stock) {
+      setWatchlistError('Could not find the selected stock.')
+      return
+    }
+
+    setWatchlistStockToAdd(stock)
+    setWatchlistModalError('')
+    setShowWatchlistModal(true)
+  }
+  const handleConfirmWatchlistAdd = async (event) => {
+    event.preventDefault()
+    setWatchlistModalError('')
+
+    const formData = new FormData(event.currentTarget)
+    const targetPrice = Number(formData.get('targetPrice'))
+    const condition = formData.get('condition')
+    const stockId = watchlistStockToAdd?.id
+
+    if (!stockId || !Number.isFinite(targetPrice) || targetPrice <= 0) {
+      setWatchlistModalError('Enter a valid target price greater than zero.')
+      return
+    }
+
+    if (!['ABOVE', 'BELOW'].includes(condition)) {
+      setWatchlistModalError('Please select a valid alert condition.')
+      return
+    }
+
+    setAddingToWatchlist(true)
+
+    let watchlistAdded = false
 
     try {
-      await api.post(`/api/watchlist/${stockId}`)
+      try {
+        await api.post(`/api/watchlist/${stockId}`)
+        watchlistAdded = true
+      } catch (error) {
+        if (error.response?.status === 409) {
+          watchlistAdded = true
+        } else {
+          throw error
+        }
+      }
 
-      setWatchlistStockIds((currentIds) =>
-          currentIds.includes(stockId) ? currentIds : [...currentIds, stockId]
-      )
-
-      setActivePage('Watchlist')
-      setSearch('')
-    } catch (error) {
-      if (error.response?.status === 409) {
+      if (watchlistAdded) {
         setWatchlistStockIds((currentIds) =>
             currentIds.includes(stockId) ? currentIds : [...currentIds, stockId]
         )
+      }
 
-        setWatchlistError('This stock is already in your watchlist.')
-        setActivePage('Watchlist')
-        setSearch('')
-      } else if (error.response?.status === 401) {
+      const response = await api.post('/api/alerts', {
+        stockId,
+        targetPrice,
+        condition,
+      })
+
+      setAlerts((currentAlerts) => [response.data, ...currentAlerts])
+      setShowWatchlistModal(false)
+      setWatchlistStockToAdd(null)
+      setActivePage('Watchlist')
+      setSearch('')
+    } catch (error) {
+      if (error.response?.status === 401) {
         localStorage.removeItem('accessToken')
         window.location.href = '/'
-      } else {
-        setWatchlistError(
-            error.response?.data?.detail ||
-            error.response?.data?.message ||
-            'Could not add this stock to your watchlist.'
-        )
+        return
       }
+
+      const message =
+          error.response?.data?.detail ||
+          error.response?.data?.message ||
+          'Could not complete the request. Please try again.'
+
+      setWatchlistModalError(
+          watchlistAdded
+              ? `Stock is in your watchlist, but the price alert could not be created: ${message}`
+              : message
+      )
+    } finally {
+      setAddingToWatchlist(false)
     }
   }
-
 
   const handleCreateAlert = async (event) => {
     event.preventDefault()
@@ -1434,6 +1489,124 @@ function App() {
               </>
           )}
         </main>
+
+        {showWatchlistModal && watchlistStockToAdd && (
+            <div
+                className="watchlist-modal-backdrop"
+                onClick={(event) => {
+                  if (event.target === event.currentTarget && !addingToWatchlist) {
+                    setShowWatchlistModal(false)
+                    setWatchlistStockToAdd(null)
+                    setWatchlistModalError('')
+                  }
+                }}
+            >
+              <div
+                  className="watchlist-modal"
+                  role="dialog"
+                  aria-modal="true"
+                  aria-labelledby="watchlist-modal-title"
+              >
+                <div className="watchlist-modal-header">
+                  <div>
+                    <p className="eyebrow">WATCHLIST CONFIGURATION</p>
+                    <h2 id="watchlist-modal-title">Add price alert</h2>
+                    <p className="watchlist-modal-description">
+                      Configure when you want to be notified about this stock.
+                    </p>
+                  </div>
+
+                  <button
+                      type="button"
+                      className="watchlist-modal-close"
+                      disabled={addingToWatchlist}
+                      onClick={() => {
+                        setShowWatchlistModal(false)
+                        setWatchlistStockToAdd(null)
+                        setWatchlistModalError('')
+                      }}
+                      aria-label="Close"
+                  >
+                    ×
+                  </button>
+                </div>
+
+                <div className="watchlist-stock-preview">
+                  <div className="watchlist-stock-symbol">
+                    {(watchlistStockToAdd.symbol ?? '?').slice(0, 1)}
+                  </div>
+                  <div>
+                    <strong>{watchlistStockToAdd.symbol}</strong>
+                    <p>{watchlistStockToAdd.companyName}</p>
+                  </div>
+                </div>
+
+                <form onSubmit={handleConfirmWatchlistAdd}>
+                  <div className="watchlist-modal-field">
+                    <label htmlFor="watchlist-target-price">
+                      Target price (₹)
+                    </label>
+                    <input
+                        id="watchlist-target-price"
+                        name="targetPrice"
+                        type="number"
+                        min="0.01"
+                        step="0.01"
+                        placeholder="Enter target price"
+                        required
+                        autoFocus
+                    />
+                  </div>
+
+                  <div className="watchlist-modal-field">
+                    <label htmlFor="watchlist-condition">
+                      Notify me when the price goes
+                    </label>
+                    <select
+                        id="watchlist-condition"
+                        name="condition"
+                        defaultValue="ABOVE"
+                        required
+                    >
+                      <option value="ABOVE">Above the target price</option>
+                      <option value="BELOW">Below the target price</option>
+                    </select>
+                  </div>
+
+                  {watchlistModalError && (
+                      <p className="watchlist-modal-error">
+                        {watchlistModalError}
+                      </p>
+                  )}
+
+                  <div className="watchlist-modal-actions">
+                    <button
+                        type="button"
+                        className="watchlist-cancel-button"
+                        disabled={addingToWatchlist}
+                        onClick={() => {
+                          setShowWatchlistModal(false)
+                          setWatchlistStockToAdd(null)
+                          setWatchlistModalError('')
+                        }}
+                    >
+                      Cancel
+                    </button>
+
+                    <button
+                        type="submit"
+                        className="watchlist-confirm-button"
+                        disabled={addingToWatchlist}
+                    >
+                      {addingToWatchlist
+                          ? 'Adding...'
+                          : 'Add to Watchlist'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+        )}
       </div>
   )
 }
